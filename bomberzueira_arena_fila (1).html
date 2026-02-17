@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BomberZueira Arena Online Simulada</title>
+<style>
+body{background:#0a0f1e;color:white;font-family:Segoe UI;text-align:center;padding:20px}
+button{padding:12px 20px;border-radius:10px;border:none;background:#ffd700;font-weight:bold;cursor:pointer;margin:5px}
+.grid{display:grid;grid-template-columns:repeat(13,42px);gap:4px;justify-content:center;margin-top:20px}
+.cell{width:42px;height:42px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px}
+.wall{background:#5a4a3a}
+.block{background:#8a6f3a}
+.empty{background:#2a3f5a}
+.panel{margin:10px auto;padding:10px;background:#111;border-radius:10px;width:300px}
+</style>
+</head>
+<body>
+
+<h1>🏛️ BomberZueira Arena</h1>
+<p>Simulação de arena com fila de entrada</p>
+
+<div class="panel">
+<button onclick="createPlayer()">Criar Conta</button>
+<button onclick="enterQueue()">Entrar na Arena</button>
+<div id="status"></div>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const SIZE = 13;
+let grid=[];
+let arenaBusy=false;
+let queue=[];
+let currentPlayer=null;
+let enemies=[];
+let bombs=[];
+let explosions=[];
+
+function savePlayer(p){ localStorage.setItem("bz_player", JSON.stringify(p)); }
+function loadPlayer(){ const s=localStorage.getItem("bz_player"); if(s) currentPlayer=JSON.parse(s); }
+
+function createPlayer(){
+ const id="P"+Math.floor(Math.random()*9999);
+ currentPlayer={id,emoji:"🧑‍💼",power:2};
+ savePlayer(currentPlayer);
+ updateStatus("Conta criada: "+id);
+}
+
+function enterQueue(){
+ if(!currentPlayer){updateStatus("Crie conta primeiro");return;}
+ if(arenaBusy){
+  queue.push(currentPlayer);
+  updateStatus("Arena cheia. Você entrou na fila. Posição: "+queue.length);
+ }else{
+  startMatch(currentPlayer);
+ }
+}
+
+function startMatch(player){
+ arenaBusy=true;
+ currentPlayer=player;
+ updateStatus("Você entrou na arena!");
+ initMap();
+ enemies=[
+  {x:11,y:11,emoji:"👴"},
+  {x:11,y:1,emoji:"🧔‍♂️"},
+  {x:1,y:11,emoji:"😠"}
+ ];
+ player.x=1; player.y=1;
+ gameLoop();
+}
+
+function finishMatch(msg){
+ alert(msg);
+ arenaBusy=false;
+ if(queue.length>0){
+  const next=queue.shift();
+  startMatch(next);
+ }else{
+  updateStatus("Arena livre aguardando jogadores");
+ }
+}
+
+function updateStatus(t){ document.getElementById("status").innerText=t; }
+
+function initMap(){
+ grid=[];
+ for(let y=0;y<SIZE;y++){
+  grid[y]=[];
+  for(let x=0;x<SIZE;x++){
+   if(x===0||y===0||x===SIZE-1||y===SIZE-1||(x%2===0&&y%2===0)){
+     grid[y][x]="wall";
+   }else if(Math.random()<0.4 && !(x<=2&&y<=2)){
+     grid[y][x]="block";
+   }else grid[y][x]="empty";
+  }
+ }
+ draw();
+}
+
+function draw(){
+ const g=document.getElementById("grid");
+ g.innerHTML="";
+ for(let y=0;y<SIZE;y++){
+  for(let x=0;x<SIZE;x++){
+   const c=document.createElement("div");
+   c.className="cell "+grid[y][x];
+
+   if(currentPlayer && currentPlayer.x===x && currentPlayer.y===y) c.innerText=currentPlayer.emoji;
+   enemies.forEach(e=>{ if(e.x===x && e.y===y) c.innerText=e.emoji; });
+   bombs.forEach(b=>{ if(b.x===x && b.y===y) c.innerText="💣"; });
+   explosions.forEach(e=>{ if(e.x===x && e.y===y) c.innerText="🔥"; });
+
+   g.appendChild(c);
+  }
+ }
+}
+
+document.addEventListener("keydown",e=>{
+ if(!arenaBusy || !currentPlayer) return;
+
+ let nx=currentPlayer.x, ny=currentPlayer.y;
+ if(e.key==="ArrowUp") ny--;
+ if(e.key==="ArrowDown") ny++;
+ if(e.key==="ArrowLeft") nx--;
+ if(e.key==="ArrowRight") nx++;
+ if(e.key===" "){ placeBomb(currentPlayer.x,currentPlayer.y,currentPlayer.power); return; }
+
+ if(grid[ny][nx]==="empty" && !enemyAt(nx,ny)){
+  currentPlayer.x=nx; currentPlayer.y=ny;
+ }
+ draw();
+});
+
+function enemyAt(x,y){ return enemies.some(e=>e.x===x && e.y===y); }
+
+function moveEnemies(){
+ enemies.forEach(e=>{
+  const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+  const d=dirs[Math.floor(Math.random()*dirs.length)];
+  const nx=e.x+d[0], ny=e.y+d[1];
+  if(grid[ny][nx]==="empty" && !(currentPlayer.x===nx&&currentPlayer.y===ny)){
+    e.x=nx; e.y=ny;
+  }
+  if(e.x===currentPlayer.x && e.y===currentPlayer.y){
+    finishMatch("Você perdeu!");
+  }
+ });
+}
+
+function placeBomb(x,y,power){
+ bombs.push({x,y,power});
+ setTimeout(()=>explodeBomb(),2000);
+}
+
+function explodeBomb(){
+ const b=bombs.shift();
+ if(!b) return;
+
+ const cells=[{x:b.x,y:b.y}];
+ for(let i=1;i<=b.power;i++){
+  if(grid[b.y][b.x+i]!=="wall") cells.push({x:b.x+i,y:b.y});
+  if(grid[b.y][b.x-i]!=="wall") cells.push({x:b.x-i,y:b.y});
+  if(grid[b.y+i][b.x]!=="wall") cells.push({x:b.x,y:b.y+i});
+  if(grid[b.y-i][b.x]!=="wall") cells.push({x:b.x,y:b.y-i});
+ }
+
+ cells.forEach(c=>{
+  if(grid[c.y][c.x]==="block") grid[c.y][c.x]="empty";
+  explosions.push(c);
+
+  if(currentPlayer.x===c.x && currentPlayer.y===c.y){
+    finishMatch("Você morreu!");
+  }
+
+  enemies=enemies.filter(e=>!(e.x===c.x && e.y===c.y));
+  if(enemies.length===0){
+    finishMatch("Vitória!");
+  }
+ });
+
+ draw();
+ setTimeout(()=>{explosions=[]; draw();},500);
+}
+
+function gameLoop(){
+ if(window.loop) clearInterval(window.loop);
+ window.loop=setInterval(()=>{
+  moveEnemies();
+  draw();
+ },600);
+}
+
+loadPlayer();
+if(currentPlayer) updateStatus("Conta carregada: "+currentPlayer.id);
+</script>
+
+</body>
+</html>
