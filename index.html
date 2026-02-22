@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>BomberZueira Arena</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  margin: 0;
+  background: #0f0f0f;
+  color: #fff;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+#login, #gameOver {
+  margin-top: 80px;
+}
+input, button {
+  padding: 10px;
+  font-size: 16px;
+  margin: 5px;
+}
+canvas {
+  background: #1b1b1b;
+  display: none;
+  margin: 20px auto;
+  border: 2px solid #444;
+}
+#hud {
+  display: none;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🔥 BomberZueira Arena 🔥</h1>
+
+<div id="login">
+  <p>Digite seu e-mail para testar o jogo</p>
+  <input type="email" id="email" placeholder="seu@email.com" />
+  <br>
+  <button onclick="startGame()">Entrar no jogo</button>
+</div>
+
+<div id="hud">
+  ❤️ Vida: <span id="vida">100</span> |
+  ⭐ Pontos: <span id="score">0</span>
+</div>
+
+<canvas id="game" width="400" height="400"></canvas>
+
+<div id="gameOver" style="display:none;">
+  <h2>💀 Fim de Jogo</h2>
+  <p>Pontuação: <span id="finalScore"></span></p>
+  <button onclick="location.reload()">Jogar novamente</button>
+</div>
+
+<!-- FIREBASE -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js";
+
+const firebaseConfig = {
+  apiKey: "SUA_API_KEY",
+  authDomain: "bomberzueira-arena.firebaseapp.com",
+  projectId: "bomberzueira-arena",
+};
+
+const app = initializeApp(firebaseConfig);
+
+initializeAppCheck(app, {
+  provider: new ReCaptchaV3Provider("6Ld2VHQsAAAAACuD5SVM7xYE1kvSF1504z8J_sUu"),
+  isTokenAutoRefreshEnabled: true
+});
+</script>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let player = { x: 180, y: 180, size: 20, life: 100 };
+let enemy = { x: 50, y: 50, size: 20, life: 100 };
+let score = 0;
+let running = false;
+
+function startGame() {
+  const email = document.getElementById("email").value;
+  if (!email) return alert("Digite um e-mail");
+
+  document.getElementById("login").style.display = "none";
+  canvas.style.display = "block";
+  document.getElementById("hud").style.display = "block";
+  running = true;
+  loop();
+}
+
+document.addEventListener("keydown", e => {
+  if (!running) return;
+  if (e.key === "ArrowUp") player.y -= 10;
+  if (e.key === "ArrowDown") player.y += 10;
+  if (e.key === "ArrowLeft") player.x -= 10;
+  if (e.key === "ArrowRight") player.x += 10;
+  if (e.key === " ") attack();
+});
+
+function attack() {
+  const dx = player.x - enemy.x;
+  const dy = player.y - enemy.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 40) {
+    enemy.life -= 20;
+    score += 10;
+  }
+}
+
+function enemyAI() {
+  if (enemy.x < player.x) enemy.x += 1;
+  if (enemy.x > player.x) enemy.x -= 1;
+  if (enemy.y < player.y) enemy.y += 1;
+  if (enemy.y > player.y) enemy.y -= 1;
+
+  const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+  if (dist < 25) player.life -= 1;
+}
+
+function loop() {
+  if (!running) return;
+
+  ctx.clearRect(0, 0, 400, 400);
+
+  ctx.fillStyle = "lime";
+  ctx.fillRect(player.x, player.y, player.size, player.size);
+
+  ctx.fillStyle = "red";
+  ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size);
+
+  enemyAI();
+
+  document.getElementById("vida").innerText = player.life;
+  document.getElementById("score").innerText = score;
+
+  if (player.life <= 0) endGame();
+  if (enemy.life <= 0) {
+    enemy.life = 100;
+    enemy.x = Math.random() * 360;
+    enemy.y = Math.random() * 360;
+  }
+
+  requestAnimationFrame(loop);
+}
+
+function endGame() {
+  running = false;
+  canvas.style.display = "none";
+  document.getElementById("hud").style.display = "none";
+  document.getElementById("gameOver").style.display = "block";
+  document.getElementById("finalScore").innerText = score;
+}
+</script>
+
+</body>
+</html>
