@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bomber Zueira Arena</title>
+<title>Bomber Zueira Arena - Profissional</title>
 
 <style>
 body{
@@ -26,19 +26,34 @@ canvas{
     width:100%;
     font-size:18px;
 }
+#restartBtn{
+    position:absolute;
+    bottom:20px;
+    left:50%;
+    transform:translateX(-50%);
+    padding:10px 20px;
+    font-size:18px;
+    background:#00ffcc;
+    border:none;
+    cursor:pointer;
+    display:none;
+}
 </style>
 </head>
 <body>
 
 <div id="ui">
-    Player 1 (WASD + F) 🔵 | Player 2 (Setas + Enter) 🔴
+Player 1 (WASD + F) 🔵 | Player 2 (Setas + Enter) 🔴
 </div>
+
+<button id="restartBtn" onclick="restartGame()">Reiniciar</button>
 
 <canvas id="game" width="640" height="640"></canvas>
 
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const restartBtn = document.getElementById("restartBtn");
 
 const tile = 40;
 const rows = 16;
@@ -50,13 +65,17 @@ document.addEventListener("keyup",e=>keys[e.key]=false);
 
 class Player{
     constructor(x,y,color,controls){
-        this.x=x;
-        this.y=y;
-        this.size=30;
-        this.speed=3;
+        this.startX=x;
+        this.startY=y;
+        this.reset();
         this.color=color;
         this.controls=controls;
+    }
+    reset(){
+        this.x=this.startX;
+        this.y=this.startY;
         this.alive=true;
+        this.activeBomb=null;
     }
     move(){
         if(!this.alive)return;
@@ -64,15 +83,15 @@ class Player{
         let nx=this.x;
         let ny=this.y;
 
-        if(keys[this.controls.up])ny-=this.speed;
-        if(keys[this.controls.down])ny+=this.speed;
-        if(keys[this.controls.left])nx-=this.speed;
-        if(keys[this.controls.right])nx+=this.speed;
+        if(keys[this.controls.up])ny-=3;
+        if(keys[this.controls.down])ny+=3;
+        if(keys[this.controls.left])nx-=3;
+        if(keys[this.controls.right])nx+=3;
 
         if(!collide(nx,this.y))this.x=nx;
         if(!collide(this.x,ny))this.y=ny;
 
-        if(keys[this.controls.bomb]){
+        if(keys[this.controls.bomb] && !this.activeBomb){
             placeBomb(this);
             keys[this.controls.bomb]=false;
         }
@@ -87,10 +106,11 @@ class Player{
 }
 
 class Bomb{
-    constructor(x,y){
+    constructor(x,y,owner){
         this.x=x;
         this.y=y;
-        this.timer=120;
+        this.timer=90;
+        this.owner=owner;
     }
     update(){
         this.timer--;
@@ -108,7 +128,7 @@ class Explosion{
     constructor(x,y){
         this.x=x;
         this.y=y;
-        this.timer=30;
+        this.timer=25;
     }
     update(){this.timer--;}
     draw(){
@@ -117,9 +137,7 @@ class Explosion{
     }
 }
 
-let map=[];
-let bombs=[];
-let explosions=[];
+let map=[], bombs=[], explosions=[], gameOver=false;
 
 function generateMap(){
     for(let r=0;r<rows;r++){
@@ -127,15 +145,15 @@ function generateMap(){
         for(let c=0;c<cols;c++){
             if(r%2===1 && c%2===1){
                 map[r][c]=1;
-            }else if(Math.random()<0.25){
+            }else if(Math.random()<0.3){
                 map[r][c]=2;
             }else{
                 map[r][c]=0;
             }
         }
     }
-    map[0][0]=0; map[0][1]=0; map[1][0]=0;
-    map[15][15]=0; map[14][15]=0; map[15][14]=0;
+    map[0][0]=map[0][1]=map[1][0]=0;
+    map[15][15]=map[14][15]=map[15][14]=0;
 }
 
 function drawMap(){
@@ -159,37 +177,43 @@ function collide(x,y){
     let top=Math.floor(y/tile);
     let bottom=Math.floor((y+30)/tile);
 
-    if(map[top]?.[left]>0)return true;
-    if(map[top]?.[right]>0)return true;
-    if(map[bottom]?.[left]>0)return true;
-    if(map[bottom]?.[right]>0)return true;
-
-    return false;
+    return (map[top]?.[left]>0 ||
+            map[top]?.[right]>0 ||
+            map[bottom]?.[left]>0 ||
+            map[bottom]?.[right]>0);
 }
 
-function placeBomb(p){
-    let gx=Math.floor(p.x/tile)*tile;
-    let gy=Math.floor(p.y/tile)*tile;
-    bombs.push(new Bomb(gx,gy));
+function placeBomb(player){
+    let gx=Math.floor(player.x/tile)*tile;
+    let gy=Math.floor(player.y/tile)*tile;
+    let bomb=new Bomb(gx,gy,player);
+    bombs.push(bomb);
+    player.activeBomb=bomb;
 }
 
 function explode(bomb){
     bombs=bombs.filter(b=>b!==bomb);
+    bomb.owner.activeBomb=null;
 
     const dirs=[[0,0],[1,0],[-1,0],[0,1],[0,-1]];
 
     dirs.forEach(d=>{
-        let x=bomb.x+d[0]*tile;
-        let y=bomb.y+d[1]*tile;
+        for(let i=0;i<2;i++){
+            let x=bomb.x+d[0]*tile*i;
+            let y=bomb.y+d[1]*tile*i;
+            let r=y/tile, c=x/tile;
 
-        explosions.push(new Explosion(x,y));
+            if(map[r] && map[r][c]===1)break;
 
-        let r=y/tile;
-        let c=x/tile;
+            explosions.push(new Explosion(x,y));
 
-        if(map[r] && map[r][c]===2)map[r][c]=0;
+            if(map[r] && map[r][c]===2){
+                map[r][c]=0;
+                break;
+            }
 
-        damage(x,y);
+            damage(x,y);
+        }
     });
 }
 
@@ -201,8 +225,20 @@ function damage(x,y){
            p.y<y+tile &&
            p.y+30>y){
             p.alive=false;
+            gameOver=true;
+            restartBtn.style.display="block";
         }
     });
+}
+
+function restartGame(){
+    bombs=[];
+    explosions=[];
+    gameOver=false;
+    restartBtn.style.display="none";
+    generateMap();
+    p1.reset();
+    p2.reset();
 }
 
 let p1=new Player(0,0,"cyan",
@@ -221,8 +257,10 @@ function loop(){
 
     drawMap();
 
-    p1.move();
-    p2.move();
+    if(!gameOver){
+        p1.move();
+        p2.move();
+    }
 
     p1.draw();
     p2.draw();
@@ -231,7 +269,7 @@ function loop(){
     explosions.forEach(e=>{e.update();e.draw();});
     explosions=explosions.filter(e=>e.timer>0);
 
-    if(!p1.alive || !p2.alive){
+    if(gameOver){
         ctx.fillStyle="white";
         ctx.font="40px Arial";
         ctx.fillText("FIM DE JOGO",170,320);
