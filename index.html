@@ -2,161 +2,179 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
-<title>BomberZueira Arena</title>
+<title>BomberZueira Arena PRO</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <style>
-body {
-  margin: 0;
-  background: #0f0f0f;
-  color: #fff;
-  font-family: Arial, sans-serif;
-  text-align: center;
-}
-#login, #gameOver {
-  margin-top: 80px;
-}
-input, button {
-  padding: 10px;
-  font-size: 16px;
-  margin: 5px;
-}
-canvas {
-  background: #1b1b1b;
-  display: none;
-  margin: 20px auto;
-  border: 2px solid #444;
-}
-#hud {
-  display: none;
-}
+body{margin:0;background:#0f0f0f;color:#fff;font-family:Arial;text-align:center}
+input,button{padding:10px;margin:5px;font-size:16px}
+canvas{background:#1b1b1b;border:2px solid #444;display:none;margin:20px auto}
+#hud,#controls,#gameArea{display:none}
+.ctrl{padding:12px;font-size:18px;margin:4px}
 </style>
 </head>
-
 <body>
 
 <h1>🔥 BomberZueira Arena 🔥</h1>
 
 <div id="login">
-  <p>Digite seu e-mail para testar o jogo</p>
-  <input type="email" id="email" placeholder="seu@email.com" />
-  <br>
-  <button onclick="startGame()">Entrar no jogo</button>
+<h3>Login / Registro</h3>
+<input type="email" id="email" placeholder="Email válido"><br>
+<input type="password" id="pass" placeholder="Senha"><br>
+<button onclick="register()">Registrar</button>
+<button onclick="login()">Entrar</button><br>
+<button onclick="connectWallet()">🔗 Conectar Carteira</button>
+<p id="msg"></p>
 </div>
 
+<div id="gameArea">
 <div id="hud">
-  ❤️ Vida: <span id="vida">100</span> |
-  ⭐ Pontos: <span id="score">0</span>
+❤️ Vida: <span id="vida">100</span> |
+⭐ Pontos: <span id="score">0</span>
 </div>
 
-<canvas id="game" width="400" height="400"></canvas>
+<canvas id="game" width="480" height="480"></canvas>
 
-<div id="gameOver" style="display:none;">
-  <h2>💀 Fim de Jogo</h2>
-  <p>Pontuação: <span id="finalScore"></span></p>
-  <button onclick="location.reload()">Jogar novamente</button>
+<div id="controls">
+<div><button class="ctrl" onclick="move('up')">⬆️</button></div>
+<div>
+<button class="ctrl" onclick="move('left')">⬅️</button>
+<button class="ctrl" onclick="attack()">💣</button>
+<button class="ctrl" onclick="move('right')">➡️</button>
 </div>
-
-<!-- FIREBASE -->
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js";
-
-const firebaseConfig = {
-  apiKey: "SUA_API_KEY",
-  authDomain: "bomberzueira-arena.firebaseapp.com",
-  projectId: "bomberzueira-arena",
-};
-
-const app = initializeApp(firebaseConfig);
-
-initializeAppCheck(app, {
-  provider: new ReCaptchaV3Provider("6Ld2VHQsAAAAACuD5SVM7xYE1kvSF1504z8J_sUu"),
-  isTokenAutoRefreshEnabled: true
-});
-</script>
+<div><button class="ctrl" onclick="move('down')">⬇️</button></div>
+</div>
+</div>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+function validEmail(email){
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
-let player = { x: 180, y: 180, size: 20, life: 100 };
-let enemy = { x: 50, y: 50, size: 20, life: 100 };
-let score = 0;
-let running = false;
+function register(){
+  const email=document.getElementById("email").value;
+  const pass=document.getElementById("pass").value;
+  if(!validEmail(email)) return msg("Email inválido");
+  if(pass.length<4) return msg("Senha mínima 4");
+  localStorage.setItem("user",JSON.stringify({email,pass}));
+  msg("Registrado!");
+}
 
-function startGame() {
-  const email = document.getElementById("email").value;
-  if (!email) return alert("Digite um e-mail");
+function login(){
+  const email=document.getElementById("email").value;
+  const pass=document.getElementById("pass").value;
+  const user=JSON.parse(localStorage.getItem("user")||"{}");
+  if(email===user.email && pass===user.pass){
+    startGame();
+  }else{
+    msg("Login incorreto");
+  }
+}
 
-  document.getElementById("login").style.display = "none";
-  canvas.style.display = "block";
-  document.getElementById("hud").style.display = "block";
-  running = true;
+function connectWallet(){
+  alert("Carteira conectada (placeholder)");
+}
+
+function msg(t){ document.getElementById("msg").innerText=t; }
+
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+
+let player={x:60,y:60,size:28,life:100};
+let enemy={x:360,y:360,size:28,life:100};
+let bombs=[];
+let score=0;
+let running=false;
+
+function startGame(){
+  document.getElementById("login").style.display="none";
+  document.getElementById("gameArea").style.display="block";
+  document.getElementById("hud").style.display="block";
+  document.getElementById("controls").style.display="block";
+  canvas.style.display="block";
+  running=true;
   loop();
 }
 
-document.addEventListener("keydown", e => {
-  if (!running) return;
-  if (e.key === "ArrowUp") player.y -= 10;
-  if (e.key === "ArrowDown") player.y += 10;
-  if (e.key === "ArrowLeft") player.x -= 10;
-  if (e.key === "ArrowRight") player.x += 10;
-  if (e.key === " ") attack();
+function move(dir){
+  if(!running)return;
+  if(dir==="up")player.y-=10;
+  if(dir==="down")player.y+=10;
+  if(dir==="left")player.x-=10;
+  if(dir==="right")player.x+=10;
+}
+
+document.addEventListener("keydown",e=>{
+  if(e.key==="ArrowUp")move("up");
+  if(e.key==="ArrowDown")move("down");
+  if(e.key==="ArrowLeft")move("left");
+  if(e.key==="ArrowRight")move("right");
+  if(e.key===" ")attack();
 });
 
-function attack() {
-  const dx = player.x - enemy.x;
-  const dy = player.y - enemy.y;
-  const dist = Math.hypot(dx, dy);
-  if (dist < 40) {
-    enemy.life -= 20;
-    score += 10;
-  }
+function attack(){ bombs.push({x:player.x,y:player.y,timer:40}); }
+
+function enemyAI(){
+  if(enemy.x<player.x)enemy.x+=1;
+  if(enemy.x>player.x)enemy.x-=1;
+  if(enemy.y<player.y)enemy.y+=1;
+  if(enemy.y>player.y)enemy.y-=1;
+  let dist=Math.hypot(player.x-enemy.x,player.y-enemy.y);
+  if(dist<30)player.life-=0.3;
 }
 
-function enemyAI() {
-  if (enemy.x < player.x) enemy.x += 1;
-  if (enemy.x > player.x) enemy.x -= 1;
-  if (enemy.y < player.y) enemy.y += 1;
-  if (enemy.y > player.y) enemy.y -= 1;
-
-  const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
-  if (dist < 25) player.life -= 1;
+function updateBombs(){
+  bombs.forEach(b=>b.timer--);
+  bombs.forEach(b=>{
+    if(b.timer===0){
+      let dist=Math.hypot(enemy.x-b.x,enemy.y-b.y);
+      if(dist<60){
+        enemy.life-=40;
+        score+=20;
+      }
+    }
+  });
+  bombs=bombs.filter(b=>b.timer>0);
 }
 
-function loop() {
-  if (!running) return;
+function drawBombs(){
+  ctx.fillStyle="yellow";
+  bombs.forEach(b=>{
+    ctx.beginPath();
+    ctx.arc(b.x+14,b.y+14,10,0,Math.PI*2);
+    ctx.fill();
+  });
+}
 
-  ctx.clearRect(0, 0, 400, 400);
+function loop(){
+  if(!running)return;
+  ctx.clearRect(0,0,480,480);
 
-  ctx.fillStyle = "lime";
-  ctx.fillRect(player.x, player.y, player.size, player.size);
+  ctx.fillStyle="lime";
+  ctx.fillRect(player.x,player.y,player.size,player.size);
 
-  ctx.fillStyle = "red";
-  ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size);
+  ctx.fillStyle="red";
+  ctx.fillRect(enemy.x,enemy.y,enemy.size,enemy.size);
 
   enemyAI();
+  updateBombs();
+  drawBombs();
 
-  document.getElementById("vida").innerText = player.life;
-  document.getElementById("score").innerText = score;
+  document.getElementById("vida").innerText=Math.floor(player.life);
+  document.getElementById("score").innerText=score;
 
-  if (player.life <= 0) endGame();
-  if (enemy.life <= 0) {
-    enemy.life = 100;
-    enemy.x = Math.random() * 360;
-    enemy.y = Math.random() * 360;
+  if(player.life<=0){
+    alert("Fim de jogo! Pontos: "+score);
+    running=false;
+    location.reload();
+  }
+
+  if(enemy.life<=0){
+    enemy.life=100;
+    enemy.x=Math.random()*400+40;
+    enemy.y=Math.random()*400+40;
   }
 
   requestAnimationFrame(loop);
-}
-
-function endGame() {
-  running = false;
-  canvas.style.display = "none";
-  document.getElementById("hud").style.display = "none";
-  document.getElementById("gameOver").style.display = "block";
-  document.getElementById("finalScore").innerText = score;
 }
 </script>
 
