@@ -1,283 +1,271 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bomber Zueira Arena - Profissional</title>
-
-<style>
-body{
-    margin:0;
-    background:#0f0f0f;
-    overflow:hidden;
-    font-family:Arial,Helvetica,sans-serif;
-    text-align:center;
-    color:white;
-}
-canvas{
-    background:#1a1a1a;
-    display:block;
-    margin:0 auto;
-    border:4px solid #00ffcc;
-}
-#ui{
-    position:absolute;
-    top:10px;
-    width:100%;
-    font-size:18px;
-}
-#restartBtn{
-    position:absolute;
-    bottom:20px;
-    left:50%;
-    transform:translateX(-50%);
-    padding:10px 20px;
-    font-size:18px;
-    background:#00ffcc;
-    border:none;
-    cursor:pointer;
-    display:none;
-}
-</style>
+    <meta charset="UTF-8">
+    <title>Bomberman Pro</title>
+    <style>
+        body {
+            margin: 0;
+            background: #0a0a0a;
+            color: white;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        h1 {
+            color: #ffaa00;
+            text-shadow: 2px 2px 0 #aa5500;
+        }
+        canvas {
+            border: 4px solid #ffaa00;
+            background: #1a1a1a;
+            box-shadow: 0 0 20px #ffaa00;
+        }
+        .info {
+            margin-top: 10px;
+            font-size: 20px;
+            display: flex;
+            gap: 40px;
+        }
+        .info span {
+            color: #ffaa00;
+            font-weight: bold;
+        }
+        button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background: #ffaa00;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
-
-<div id="ui">
-Player 1 (WASD + F) 🔵 | Player 2 (Setas + Enter) 🔴
-</div>
-
-<button id="restartBtn" onclick="restartGame()">Reiniciar</button>
-
-<canvas id="game" width="640" height="640"></canvas>
+    <h1>💣 BOMBERMAN PRO</h1>
+    <canvas id="gameCanvas" width="520" height="520"></canvas>
+    <div class="info">
+        <div>Vidas: <span id="lives">3</span></div>
+        <div>Pontos: <span id="score">0</span></div>
+        <div>Inimigos: <span id="enemiesCount">3</span></div>
+    </div>
+    <button onclick="resetGame()">Novo Jogo</button>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-const restartBtn = document.getElementById("restartBtn");
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const CELL_SIZE = 40;
+const GRID_SIZE = 13;
 
-const tile = 40;
-const rows = 16;
-const cols = 16;
-
+let map = [];
+let player;
+let enemies = [];
+let bombs = [];
+let explosions = [];
+let score = 0;
 let keys = {};
-document.addEventListener("keydown",e=>keys[e.key]=true);
-document.addEventListener("keyup",e=>keys[e.key]=false);
+let moveCooldown = 0;
 
-class Player{
-    constructor(x,y,color,controls){
-        this.startX=x;
-        this.startY=y;
-        this.reset();
-        this.color=color;
-        this.controls=controls;
-    }
-    reset(){
-        this.x=this.startX;
-        this.y=this.startY;
-        this.alive=true;
-        this.activeBomb=null;
-    }
-    move(){
-        if(!this.alive)return;
-
-        let nx=this.x;
-        let ny=this.y;
-
-        if(keys[this.controls.up])ny-=3;
-        if(keys[this.controls.down])ny+=3;
-        if(keys[this.controls.left])nx-=3;
-        if(keys[this.controls.right])nx+=3;
-
-        if(!collide(nx,this.y))this.x=nx;
-        if(!collide(this.x,ny))this.y=ny;
-
-        if(keys[this.controls.bomb] && !this.activeBomb){
-            placeBomb(this);
-            keys[this.controls.bomb]=false;
-        }
-    }
-    draw(){
-        if(!this.alive)return;
-        ctx.fillStyle=this.color;
-        ctx.beginPath();
-        ctx.arc(this.x+15,this.y+15,15,0,Math.PI*2);
-        ctx.fill();
-    }
-}
-
-class Bomb{
-    constructor(x,y,owner){
-        this.x=x;
-        this.y=y;
-        this.timer=90;
-        this.owner=owner;
-    }
-    update(){
-        this.timer--;
-        if(this.timer<=0)explode(this);
-    }
-    draw(){
-        ctx.fillStyle="black";
-        ctx.beginPath();
-        ctx.arc(this.x+20,this.y+20,15,0,Math.PI*2);
-        ctx.fill();
-    }
-}
-
-class Explosion{
-    constructor(x,y){
-        this.x=x;
-        this.y=y;
-        this.timer=25;
-    }
-    update(){this.timer--;}
-    draw(){
-        ctx.fillStyle="orange";
-        ctx.fillRect(this.x,this.y,tile,tile);
-    }
-}
-
-let map=[], bombs=[], explosions=[], gameOver=false;
-
-function generateMap(){
-    for(let r=0;r<rows;r++){
-        map[r]=[];
-        for(let c=0;c<cols;c++){
-            if(r%2===1 && c%2===1){
-                map[r][c]=1;
-            }else if(Math.random()<0.3){
-                map[r][c]=2;
-            }else{
-                map[r][c]=0;
+function initMap() {
+    map = [];
+    for (let y = 0; y < GRID_SIZE; y++) {
+        let row = [];
+        for (let x = 0; x < GRID_SIZE; x++) {
+            if (x === 0 || y === 0 || x === GRID_SIZE-1 || y === GRID_SIZE-1) {
+                row.push(2);
+            } else if (x % 2 === 0 && y % 2 === 0) {
+                row.push(2);
+            } else {
+                row.push(Math.random() < 0.3 ? 1 : 0);
             }
         }
+        map.push(row);
     }
-    map[0][0]=map[0][1]=map[1][0]=0;
-    map[15][15]=map[14][15]=map[15][14]=0;
+    map[1][1] = 0;
+    map[1][2] = 0;
+    map[2][1] = 0;
 }
 
-function drawMap(){
-    for(let r=0;r<rows;r++){
-        for(let c=0;c<cols;c++){
-            if(map[r][c]===1){
-                ctx.fillStyle="#555";
-                ctx.fillRect(c*tile,r*tile,tile,tile);
-            }
-            if(map[r][c]===2){
-                ctx.fillStyle="#964B00";
-                ctx.fillRect(c*tile,r*tile,tile,tile);
-            }
-        }
+function spawnEnemies(count=3){
+    enemies = [];
+    for(let i=0;i<count;i++){
+        let x,y;
+        do{
+            x=Math.floor(Math.random()*(GRID_SIZE-2))+1;
+            y=Math.floor(Math.random()*(GRID_SIZE-2))+1;
+        }while(map[y][x]!==0||(x===1&&y===1));
+        enemies.push({x,y});
     }
 }
 
-function collide(x,y){
-    let left=Math.floor(x/tile);
-    let right=Math.floor((x+30)/tile);
-    let top=Math.floor(y/tile);
-    let bottom=Math.floor((y+30)/tile);
-
-    return (map[top]?.[left]>0 ||
-            map[top]?.[right]>0 ||
-            map[bottom]?.[left]>0 ||
-            map[bottom]?.[right]>0);
-}
-
-function placeBomb(player){
-    let gx=Math.floor(player.x/tile)*tile;
-    let gy=Math.floor(player.y/tile)*tile;
-    let bomb=new Bomb(gx,gy,player);
-    bombs.push(bomb);
-    player.activeBomb=bomb;
-}
-
-function explode(bomb){
-    bombs=bombs.filter(b=>b!==bomb);
-    bomb.owner.activeBomb=null;
-
-    const dirs=[[0,0],[1,0],[-1,0],[0,1],[0,-1]];
-
-    dirs.forEach(d=>{
-        for(let i=0;i<2;i++){
-            let x=bomb.x+d[0]*tile*i;
-            let y=bomb.y+d[1]*tile*i;
-            let r=y/tile, c=x/tile;
-
-            if(map[r] && map[r][c]===1)break;
-
-            explosions.push(new Explosion(x,y));
-
-            if(map[r] && map[r][c]===2){
-                map[r][c]=0;
-                break;
-            }
-
-            damage(x,y);
-        }
-    });
-}
-
-function damage(x,y){
-    [p1,p2].forEach(p=>{
-        if(p.alive &&
-           p.x<x+tile &&
-           p.x+30>x &&
-           p.y<y+tile &&
-           p.y+30>y){
-            p.alive=false;
-            gameOver=true;
-            restartBtn.style.display="block";
-        }
-    });
-}
-
-function restartGame(){
+function resetGame(){
+    initMap();
+    player={x:1,y:1,lives:3};
     bombs=[];
     explosions=[];
-    gameOver=false;
-    restartBtn.style.display="none";
-    generateMap();
-    p1.reset();
-    p2.reset();
+    score=0;
+    spawnEnemies(3);
+    updateUI();
 }
 
-let p1=new Player(0,0,"cyan",
-    {up:"w",down:"s",left:"a",right:"d",bomb:"f"}
-);
-let p2=new Player(600,600,"red",
-    {up:"ArrowUp",down:"ArrowDown",
-     left:"ArrowLeft",right:"ArrowRight",
-     bomb:"Enter"}
-);
+function canMoveTo(x,y){
+    if(x<0||x>=GRID_SIZE||y<0||y>=GRID_SIZE) return false;
+    if(map[y][x]!==0) return false;
+    if(bombs.some(b=>b.x===x&&b.y===y)) return false;
+    return true;
+}
 
-generateMap();
+function movePlayer(dx,dy){
+    let nx=player.x+dx;
+    let ny=player.y+dy;
+    if(canMoveTo(nx,ny)){
+        player.x=nx;
+        player.y=ny;
+    }
+}
+
+function plantBomb(){
+    if(bombs.some(b=>b.x===player.x&&b.y===player.y)) return;
+    bombs.push({x:player.x,y:player.y,timer:60});
+}
+
+function updateBombs(){
+    for(let i=bombs.length-1;i>=0;i--){
+        bombs[i].timer--;
+        if(bombs[i].timer<=0){
+            explode(bombs[i].x,bombs[i].y);
+            bombs.splice(i,1);
+        }
+    }
+    for(let i=explosions.length-1;i>=0;i--){
+        explosions[i].timer--;
+        if(explosions[i].timer<=0){
+            explosions.splice(i,1);
+        }
+    }
+}
+
+function explode(x,y){
+    explosions.push({x,y,timer:20});
+    const directions=[[1,0],[-1,0],[0,1],[0,-1]];
+    directions.forEach(([dx,dy])=>{
+        for(let i=1;i<=2;i++){
+            let nx=x+dx*i;
+            let ny=y+dy*i;
+            if(map[ny][nx]===2) break;
+            explosions.push({x:nx,y:ny,timer:20});
+            if(map[ny][nx]===1) break;
+        }
+    });
+}
+
+function applyExplosions(){
+    explosions.forEach(exp=>{
+        if(map[exp.y][exp.x]===1){
+            map[exp.y][exp.x]=0;
+            score+=10;
+        }
+    });
+    for(let i=enemies.length-1;i>=0;i--){
+        if(explosions.some(exp=>exp.x===enemies[i].x&&exp.y===enemies[i].y)){
+            enemies.splice(i,1);
+            score+=50;
+        }
+    }
+    if(explosions.some(exp=>exp.x===player.x&&exp.y===player.y)){
+        player.lives--;
+        if(player.lives<=0){
+            alert("Game Over! Pontuação: "+score);
+            resetGame();
+        }else{
+            player.x=1;player.y=1;
+        }
+    }
+    updateUI();
+}
+
+function moveEnemies(){
+    enemies.forEach(e=>{
+        let dx=player.x-e.x;
+        let dy=player.y-e.y;
+        let mx=dx!==0?dx/Math.abs(dx):0;
+        let my=dy!==0?dy/Math.abs(dy):0;
+        if(Math.random()<0.5){
+            if(canMoveTo(e.x+mx,e.y)) e.x+=mx;
+        }else{
+            if(canMoveTo(e.x,e.y+my)) e.y+=my;
+        }
+    });
+}
+
+function updateUI(){
+    document.getElementById('lives').innerText=player.lives;
+    document.getElementById('score').innerText=score;
+    document.getElementById('enemiesCount').innerText=enemies.length;
+}
+
+function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    for(let y=0;y<GRID_SIZE;y++){
+        for(let x=0;x<GRID_SIZE;x++){
+            let cx=x*CELL_SIZE;
+            let cy=y*CELL_SIZE;
+            if(map[y][x]===2){
+                ctx.fillStyle="#777";
+                ctx.fillRect(cx+1,cy+1,CELL_SIZE-2,CELL_SIZE-2);
+            }else if(map[y][x]===1){
+                ctx.fillStyle="#aa6644";
+                ctx.fillRect(cx+1,cy+1,CELL_SIZE-2,CELL_SIZE-2);
+            }else{
+                ctx.fillStyle="#222";
+                ctx.fillRect(cx+1,cy+1,CELL_SIZE-2,CELL_SIZE-2);
+            }
+        }
+    }
+    ctx.fillStyle="yellow";
+    bombs.forEach(b=>{
+        ctx.beginPath();
+        ctx.arc(b.x*CELL_SIZE+20,b.y*CELL_SIZE+20,12,0,Math.PI*2);
+        ctx.fill();
+    });
+    ctx.fillStyle="orange";
+    explosions.forEach(e=>{
+        ctx.fillRect(e.x*CELL_SIZE+6,e.y*CELL_SIZE+6,28,28);
+    });
+    ctx.fillStyle="red";
+    enemies.forEach(e=>{
+        ctx.beginPath();
+        ctx.arc(e.x*CELL_SIZE+20,e.y*CELL_SIZE+20,14,0,Math.PI*2);
+        ctx.fill();
+    });
+    ctx.fillStyle="lime";
+    ctx.beginPath();
+    ctx.arc(player.x*CELL_SIZE+20,player.y*CELL_SIZE+20,16,0,Math.PI*2);
+    ctx.fill();
+}
 
 function loop(){
-    ctx.clearRect(0,0,640,640);
-
-    drawMap();
-
-    if(!gameOver){
-        p1.move();
-        p2.move();
-    }
-
-    p1.draw();
-    p2.draw();
-
-    bombs.forEach(b=>{b.update();b.draw();});
-    explosions.forEach(e=>{e.update();e.draw();});
-    explosions=explosions.filter(e=>e.timer>0);
-
-    if(gameOver){
-        ctx.fillStyle="white";
-        ctx.font="40px Arial";
-        ctx.fillText("FIM DE JOGO",170,320);
-    }
-
+    if(moveCooldown<=0){
+        if(keys["ArrowUp"]){movePlayer(0,-1);moveCooldown=8;}
+        if(keys["ArrowDown"]){movePlayer(0,1);moveCooldown=8;}
+        if(keys["ArrowLeft"]){movePlayer(-1,0);moveCooldown=8;}
+        if(keys["ArrowRight"]){movePlayer(1,0);moveCooldown=8;}
+    }else moveCooldown--;
+    if(keys[" "]){plantBomb();keys[" "]=false;}
+    if(Math.random()<0.02) moveEnemies();
+    updateBombs();
+    applyExplosions();
+    draw();
     requestAnimationFrame(loop);
 }
 
+document.addEventListener("keydown",e=>{keys[e.key]=true;if(e.key===" ")e.preventDefault();});
+document.addEventListener("keyup",e=>{keys[e.key]=false;});
+
+resetGame();
 loop();
 </script>
 </body>
