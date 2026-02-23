@@ -1,199 +1,198 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Bomberman NFT</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b1020">
+<link rel="manifest" href="manifest.json">
+<title>Bomber Zueira Arena PRO</title>
+
 <style>
-body{background:#0a0a0a;color:#fff;font-family:Courier New,monospace;margin:0;display:flex;justify-content:center;align-items:center;height:100vh}
-canvas{border:4px solid #ffaa00;background:#1a1a1a}
-button{margin:10px;padding:10px 20px;font-weight:bold}
+body{margin:0;font-family:Arial;background:#0b1020;color:white;text-align:center;overflow:hidden}
+.hidden{display:none}
+h1{color:#4ade80;text-shadow:0 0 10px #4ade80}
+button{padding:10px 18px;margin:6px;border:none;border-radius:8px;background:#22c55e;color:white;cursor:pointer}
+canvas{background:#1e293b;border:3px solid #22c55e;margin-top:10px;max-width:95vw;height:auto}
 </style>
 </head>
+
 <body>
-<canvas id="gameCanvas" width="520" height="520"></canvas>
-<button id="btnBomb">💣 Bomb</button>
+
+<h1>🔥 Bomber Zueira Arena PRO 🔥</h1>
+
+<div id="menu">
+<button onclick="startGame()">🎮 Jogar</button>
+</div>
+
+<div id="game" class="hidden">
+<h3>
+P1 ❤️ <span id="life1">3</span> |
+P2 ❤️ <span id="life2">3</span>
+</h3>
+<canvas id="canvas" width="700" height="500"></canvas><br>
+<button onclick="exitGame()">Sair</button>
+</div>
 
 <script>
-const GRID_SIZE = 13;
-const CELL_SIZE = 40;
-
-let keys = {};
-document.addEventListener('keydown',e=>keys[e.key]=true);
-document.addEventListener('keyup',e=>keys[e.key]=false);
-
-class BombermanGame{
-
-constructor(canvasId){
-this.canvas=document.getElementById(canvasId);
-this.ctx=this.canvas.getContext("2d");
-
-this.player={
-x:1,y:1,
-lives:3,
-atk:5,
-def:5,
-spd:2,
-bombPower:2,
-bombCount:1
-};
-
-this.map=[];
-this.bombs=[];
-this.explosions=[];
-this.moveCooldown=0;
-
-this.initMap();
-this.loop();
+if ('serviceWorker' in navigator) {
+ navigator.serviceWorker.register('service-worker.js');
 }
 
-initMap(){
-for(let y=0;y<GRID_SIZE;y++){
-let row=[];
-for(let x=0;x<GRID_SIZE;x++){
-if(x===0||y===0||x===GRID_SIZE-1||y===GRID_SIZE-1) row.push(2);
-else if(x%2===0&&y%2===0) row.push(2);
-else row.push(Math.random()<0.4?1:0);
-}
-this.map.push(row);
-}
-this.map[1][1]=0;
-this.map[1][2]=0;
-this.map[2][1]=0;
-}
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
 
-canMoveTo(x,y){
-if(this.map[y][x]!==0) return false;
-if(this.bombs.some(b=>b.x===x&&b.y===y&&!b.exploded)) return false;
-return true;
-}
+let keys={},running=false;
+let bombs=[],explosions=[],powers=[];
 
-movePlayer(dx,dy){
-let nx=this.player.x+dx;
-let ny=this.player.y+dy;
-if(this.canMoveTo(nx,ny)){
-this.player.x=nx;
-this.player.y=ny;
-}
+let p1={x:100,y:100,size:25,speed:2,life:3,shield:false};
+let p2={x:500,y:350,size:25,speed:2,life:3,shield:false};
+
+document.addEventListener("keydown",e=>keys[e.key]=true);
+document.addEventListener("keyup",e=>keys[e.key]=false);
+
+function startGame(){
+ document.getElementById("menu").classList.add("hidden");
+ document.getElementById("game").classList.remove("hidden");
+ running=true;
+ spawnPower();
+ loop();
 }
 
-plantBomb(){
-
-if(this.bombs.filter(b=>!b.exploded).length>=this.player.bombCount) return;
-
-if(this.bombs.some(b=>b.x===this.player.x&&b.y===this.player.y&&!b.exploded)) return;
-
-this.bombs.push({
-x:this.player.x,
-y:this.player.y,
-timer:90,
-power:this.player.bombPower,
-exploded:false
-});
+function exitGame(){
+ running=false;
+ location.reload();
 }
 
-updateBombs(){
-
-for(let b of this.bombs){
-b.timer--;
-if(b.timer<=0 && !b.exploded){
-b.exploded=true;
-this.explosions.push({x:b.x,y:b.y,timer:20});
-
-[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
-for(let i=1;i<=b.power;i++){
-let nx=b.x+dx*i;
-let ny=b.y+dy*i;
-if(this.map[ny][nx]===2) break;
-this.explosions.push({x:nx,y:ny,timer:20});
-if(this.map[ny][nx]===1){this.map[ny][nx]=0;break;}
-}
-});
-}
+function spawnPower(){
+ let types=["speed","shield","bomb"];
+ powers.push({
+   x:Math.random()*650,
+   y:Math.random()*450,
+   type:types[Math.floor(Math.random()*types.length)]
+ });
 }
 
-this.bombs=this.bombs.filter(b=>!b.exploded || this.explosions.length>0);
+function movePlayers(){
+
+ // PLAYER 1 - WASD
+ if(keys["w"]) p1.y-=p1.speed;
+ if(keys["s"]) p1.y+=p1.speed;
+ if(keys["a"]) p1.x-=p1.speed;
+ if(keys["d"]) p1.x+=p1.speed;
+
+ // PLAYER 2 - SETAS
+ if(keys["ArrowUp"]) p2.y-=p2.speed;
+ if(keys["ArrowDown"]) p2.y+=p2.speed;
+ if(keys["ArrowLeft"]) p2.x-=p2.speed;
+ if(keys["ArrowRight"]) p2.x+=p2.speed;
+
+ // Bombas
+ if(keys["f"]) placeBomb(p1);
+ if(keys["Enter"]) placeBomb(p2);
 }
 
-updateExplosions(){
-for(let e of this.explosions) e.timer--;
-this.explosions=this.explosions.filter(e=>e.timer>0);
+function placeBomb(player){
+ bombs.push({x:player.x,y:player.y,t:60,owner:player});
 }
 
-applyExplosionDamage(){
+function updateBombs(){
+ bombs.forEach(b=>b.t--);
+ bombs.forEach(b=>{
+   if(b.t===0){
+     explosions.push({x:b.x,y:b.y,t:30});
+   }
+ });
+ bombs=bombs.filter(b=>b.t>0);
 
-if(this.explosions.some(e=>e.x===this.player.x&&e.y===this.player.y)){
-let damage=Math.max(1,Math.ceil(4/this.player.def));
-this.player.lives-=damage;
-this.player.x=1;
-this.player.y=1;
-}
-}
-
-draw(){
-
-this.ctx.clearRect(0,0,520,520);
-
-for(let y=0;y<GRID_SIZE;y++){
-for(let x=0;x<GRID_SIZE;x++){
-let cx=x*CELL_SIZE;
-let cy=y*CELL_SIZE;
-if(this.map[y][x]===2){
-this.ctx.fillStyle="#777";
-}else if(this.map[y][x]===1){
-this.ctx.fillStyle="#aa6644";
-}else{
-this.ctx.fillStyle="#222";
-}
-this.ctx.fillRect(cx,cy,CELL_SIZE,CELL_SIZE);
-}
+ explosions.forEach(e=>e.t--);
+ explosions=explosions.filter(e=>e.t>0);
 }
 
-this.bombs.forEach(b=>{
-if(!b.exploded){
-let blink=b.timer<30 && Math.floor(b.timer/5)%2===0;
-this.ctx.fillStyle=blink?"#f00":"#ff0";
-this.ctx.beginPath();
-this.ctx.arc(b.x*CELL_SIZE+20,b.y*CELL_SIZE+20,12,0,Math.PI*2);
-this.ctx.fill();
-}
-});
+function collisions(){
 
-this.explosions.forEach(e=>{
-this.ctx.fillStyle="#f80";
-this.ctx.fillRect(e.x*CELL_SIZE+4,e.y*CELL_SIZE+4,CELL_SIZE-8,CELL_SIZE-8);
-});
+ explosions.forEach(e=>{
 
-this.ctx.fillStyle="#0f0";
-this.ctx.beginPath();
-this.ctx.arc(this.player.x*CELL_SIZE+20,this.player.y*CELL_SIZE+20,16,0,Math.PI*2);
-this.ctx.fill();
-}
+   [p1,p2].forEach(player=>{
+     let d=Math.hypot(player.x-e.x,player.y-e.y);
+     if(d<60 && !player.shield){
+       player.life--;
+       player.x=Math.random()*600;
+       player.y=Math.random()*400;
+     }
+   });
 
-loop(){
+ });
 
-if(this.moveCooldown<=0){
-if(keys["ArrowUp"]) {this.movePlayer(0,-1);this.moveCooldown=Math.max(1,this.player.spd);}
-if(keys["ArrowDown"]) {this.movePlayer(0,1);this.moveCooldown=Math.max(1,this.player.spd);}
-if(keys["ArrowLeft"]) {this.movePlayer(-1,0);this.moveCooldown=Math.max(1,this.player.spd);}
-if(keys["ArrowRight"]) {this.movePlayer(1,0);this.moveCooldown=Math.max(1,this.player.spd);}
-}else this.moveCooldown--;
+ powers.forEach(p=>{
+   [p1,p2].forEach(player=>{
+     let d=Math.hypot(player.x-p.x,player.y-p.y);
+     if(d<30){
+       if(p.type==="speed") player.speed+=0.5;
+       if(p.type==="shield") player.shield=true;
+       if(p.type==="bomb") placeBomb(player);
+       p.collected=true;
+     }
+   });
+ });
 
-if(keys[" "]){this.plantBomb();keys[" "]=false;}
+ powers=powers.filter(p=>!p.collected);
 
-this.updateBombs();
-this.updateExplosions();
-this.applyExplosionDamage();
-this.draw();
+ if(p1.life<=0 || p2.life<=0){
+   running=false;
+   alert("Fim de Jogo!");
+   location.reload();
+ }
 
-requestAnimationFrame(()=>this.loop());
-}
-
+ document.getElementById("life1").innerText=p1.life;
+ document.getElementById("life2").innerText=p2.life;
 }
 
-const game=new BombermanGame("gameCanvas");
+function draw(){
 
-document.getElementById("btnBomb").onclick=()=>game.plantBomb();
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+
+ // Player 1
+ ctx.fillStyle=p1.shield?"#60a5fa":"#4ade80";
+ ctx.fillRect(p1.x,p1.y,p1.size,p1.size);
+
+ // Player 2
+ ctx.fillStyle=p2.shield?"#60a5fa":"#f87171";
+ ctx.fillRect(p2.x,p2.y,p2.size,p2.size);
+
+ // Bombas
+ ctx.fillStyle="#fde047";
+ bombs.forEach(b=>{
+   ctx.beginPath();
+   ctx.arc(b.x+12,b.y+12,10,0,Math.PI*2);
+   ctx.fill();
+ });
+
+ // Explosões
+ ctx.fillStyle="orange";
+ explosions.forEach(e=>{
+   ctx.beginPath();
+   ctx.arc(e.x+12,e.y+12,50,0,Math.PI*2);
+   ctx.fill();
+ });
+
+ // Powers
+ powers.forEach(p=>{
+   if(p.type==="speed") ctx.fillStyle="#22d3ee";
+   if(p.type==="shield") ctx.fillStyle="#a78bfa";
+   if(p.type==="bomb") ctx.fillStyle="#f97316";
+   ctx.fillRect(p.x,p.y,18,18);
+ });
+}
+
+function loop(){
+ if(!running) return;
+ movePlayers();
+ updateBombs();
+ collisions();
+ draw();
+ requestAnimationFrame(loop);
+}
 </script>
+
 </body>
 </html>
