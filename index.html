@@ -1,180 +1,196 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8" />
-<title>BomberZueira Arena PRO</title>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b1020">
+<link rel="manifest" href="manifest.json">
+<title>Bomber Zueira Arena PRO</title>
+
 <style>
-body{margin:0;background:#0f0f0f;color:#fff;font-family:Arial;text-align:center}
-input,button{padding:10px;margin:5px;font-size:16px}
-canvas{background:#1b1b1b;border:2px solid #444;display:none;margin:20px auto}
-#hud,#controls,#gameArea{display:none}
-.ctrl{padding:12px;font-size:18px;margin:4px}
+body{margin:0;font-family:Arial;background:#0b1020;color:white;text-align:center;overflow:hidden}
+.hidden{display:none}
+h1{color:#4ade80;text-shadow:0 0 10px #4ade80}
+button{padding:10px 18px;margin:6px;border:none;border-radius:8px;background:#22c55e;color:white;cursor:pointer}
+canvas{background:#1e293b;border:3px solid #22c55e;margin-top:10px;max-width:95vw;height:auto}
 </style>
 </head>
+
 <body>
 
-<h1>🔥 BomberZueira Arena 🔥</h1>
+<h1>🔥 Bomber Zueira Arena PRO 🔥</h1>
 
-<div id="login">
-<h3>Login / Registro</h3>
-<input type="email" id="email" placeholder="Email válido"><br>
-<input type="password" id="pass" placeholder="Senha"><br>
-<button onclick="register()">Registrar</button>
-<button onclick="login()">Entrar</button><br>
-<button onclick="connectWallet()">🔗 Conectar Carteira</button>
-<p id="msg"></p>
+<div id="menu">
+<button onclick="startGame()">🎮 Jogar</button>
 </div>
 
-<div id="gameArea">
-<div id="hud">
-❤️ Vida: <span id="vida">100</span> |
-⭐ Pontos: <span id="score">0</span>
-</div>
-
-<canvas id="game" width="480" height="480"></canvas>
-
-<div id="controls">
-<div><button class="ctrl" onclick="move('up')">⬆️</button></div>
-<div>
-<button class="ctrl" onclick="move('left')">⬅️</button>
-<button class="ctrl" onclick="attack()">💣</button>
-<button class="ctrl" onclick="move('right')">➡️</button>
-</div>
-<div><button class="ctrl" onclick="move('down')">⬇️</button></div>
-</div>
+<div id="game" class="hidden">
+<h3>
+P1 ❤️ <span id="life1">3</span> |
+P2 ❤️ <span id="life2">3</span>
+</h3>
+<canvas id="canvas" width="700" height="500"></canvas><br>
+<button onclick="exitGame()">Sair</button>
 </div>
 
 <script>
-function validEmail(email){
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+if ('serviceWorker' in navigator) {
+ navigator.serviceWorker.register('service-worker.js');
 }
 
-function register(){
-  const email=document.getElementById("email").value;
-  const pass=document.getElementById("pass").value;
-  if(!validEmail(email)) return msg("Email inválido");
-  if(pass.length<4) return msg("Senha mínima 4");
-  localStorage.setItem("user",JSON.stringify({email,pass}));
-  msg("Registrado!");
-}
-
-function login(){
-  const email=document.getElementById("email").value;
-  const pass=document.getElementById("pass").value;
-  const user=JSON.parse(localStorage.getItem("user")||"{}");
-  if(email===user.email && pass===user.pass){
-    startGame();
-  }else{
-    msg("Login incorreto");
-  }
-}
-
-function connectWallet(){
-  alert("Carteira conectada (placeholder)");
-}
-
-function msg(t){ document.getElementById("msg").innerText=t; }
-
-const canvas=document.getElementById("game");
+const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
 
-let player={x:60,y:60,size:28,life:100};
-let enemy={x:360,y:360,size:28,life:100};
-let bombs=[];
-let score=0;
-let running=false;
+let keys={},running=false;
+let bombs=[],explosions=[],powers=[];
+
+let p1={x:100,y:100,size:25,speed:2,life:3,shield:false};
+let p2={x:500,y:350,size:25,speed:2,life:3,shield:false};
+
+document.addEventListener("keydown",e=>keys[e.key]=true);
+document.addEventListener("keyup",e=>keys[e.key]=false);
 
 function startGame(){
-  document.getElementById("login").style.display="none";
-  document.getElementById("gameArea").style.display="block";
-  document.getElementById("hud").style.display="block";
-  document.getElementById("controls").style.display="block";
-  canvas.style.display="block";
-  running=true;
-  loop();
+ document.getElementById("menu").classList.add("hidden");
+ document.getElementById("game").classList.remove("hidden");
+ running=true;
+ spawnPower();
+ loop();
 }
 
-function move(dir){
-  if(!running)return;
-  if(dir==="up")player.y-=10;
-  if(dir==="down")player.y+=10;
-  if(dir==="left")player.x-=10;
-  if(dir==="right")player.x+=10;
+function exitGame(){
+ running=false;
+ location.reload();
 }
 
-document.addEventListener("keydown",e=>{
-  if(e.key==="ArrowUp")move("up");
-  if(e.key==="ArrowDown")move("down");
-  if(e.key==="ArrowLeft")move("left");
-  if(e.key==="ArrowRight")move("right");
-  if(e.key===" ")attack();
-});
+function spawnPower(){
+ let types=["speed","shield","bomb"];
+ powers.push({
+   x:Math.random()*650,
+   y:Math.random()*450,
+   type:types[Math.floor(Math.random()*types.length)]
+ });
+}
 
-function attack(){ bombs.push({x:player.x,y:player.y,timer:40}); }
+function movePlayers(){
 
-function enemyAI(){
-  if(enemy.x<player.x)enemy.x+=1;
-  if(enemy.x>player.x)enemy.x-=1;
-  if(enemy.y<player.y)enemy.y+=1;
-  if(enemy.y>player.y)enemy.y-=1;
-  let dist=Math.hypot(player.x-enemy.x,player.y-enemy.y);
-  if(dist<30)player.life-=0.3;
+ // PLAYER 1 - WASD
+ if(keys["w"]) p1.y-=p1.speed;
+ if(keys["s"]) p1.y+=p1.speed;
+ if(keys["a"]) p1.x-=p1.speed;
+ if(keys["d"]) p1.x+=p1.speed;
+
+ // PLAYER 2 - SETAS
+ if(keys["ArrowUp"]) p2.y-=p2.speed;
+ if(keys["ArrowDown"]) p2.y+=p2.speed;
+ if(keys["ArrowLeft"]) p2.x-=p2.speed;
+ if(keys["ArrowRight"]) p2.x+=p2.speed;
+
+ // Bombas
+ if(keys["f"]) placeBomb(p1);
+ if(keys["Enter"]) placeBomb(p2);
+}
+
+function placeBomb(player){
+ bombs.push({x:player.x,y:player.y,t:60,owner:player});
 }
 
 function updateBombs(){
-  bombs.forEach(b=>b.timer--);
-  bombs.forEach(b=>{
-    if(b.timer===0){
-      let dist=Math.hypot(enemy.x-b.x,enemy.y-b.y);
-      if(dist<60){
-        enemy.life-=40;
-        score+=20;
-      }
-    }
-  });
-  bombs=bombs.filter(b=>b.timer>0);
+ bombs.forEach(b=>b.t--);
+ bombs.forEach(b=>{
+   if(b.t===0){
+     explosions.push({x:b.x,y:b.y,t:30});
+   }
+ });
+ bombs=bombs.filter(b=>b.t>0);
+
+ explosions.forEach(e=>e.t--);
+ explosions=explosions.filter(e=>e.t>0);
 }
 
-function drawBombs(){
-  ctx.fillStyle="yellow";
-  bombs.forEach(b=>{
-    ctx.beginPath();
-    ctx.arc(b.x+14,b.y+14,10,0,Math.PI*2);
-    ctx.fill();
-  });
+function collisions(){
+
+ explosions.forEach(e=>{
+
+   [p1,p2].forEach(player=>{
+     let d=Math.hypot(player.x-e.x,player.y-e.y);
+     if(d<60 && !player.shield){
+       player.life--;
+       player.x=Math.random()*600;
+       player.y=Math.random()*400;
+     }
+   });
+
+ });
+
+ powers.forEach(p=>{
+   [p1,p2].forEach(player=>{
+     let d=Math.hypot(player.x-p.x,player.y-p.y);
+     if(d<30){
+       if(p.type==="speed") player.speed+=0.5;
+       if(p.type==="shield") player.shield=true;
+       if(p.type==="bomb") placeBomb(player);
+       p.collected=true;
+     }
+   });
+ });
+
+ powers=powers.filter(p=>!p.collected);
+
+ if(p1.life<=0 || p2.life<=0){
+   running=false;
+   alert("Fim de Jogo!");
+   location.reload();
+ }
+
+ document.getElementById("life1").innerText=p1.life;
+ document.getElementById("life2").innerText=p2.life;
+}
+
+function draw(){
+
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+
+ // Player 1
+ ctx.fillStyle=p1.shield?"#60a5fa":"#4ade80";
+ ctx.fillRect(p1.x,p1.y,p1.size,p1.size);
+
+ // Player 2
+ ctx.fillStyle=p2.shield?"#60a5fa":"#f87171";
+ ctx.fillRect(p2.x,p2.y,p2.size,p2.size);
+
+ // Bombas
+ ctx.fillStyle="#fde047";
+ bombs.forEach(b=>{
+   ctx.beginPath();
+   ctx.arc(b.x+12,b.y+12,10,0,Math.PI*2);
+   ctx.fill();
+ });
+
+ // Explosões
+ ctx.fillStyle="orange";
+ explosions.forEach(e=>{
+   ctx.beginPath();
+   ctx.arc(e.x+12,e.y+12,50,0,Math.PI*2);
+   ctx.fill();
+ });
+
+ // Powers
+ powers.forEach(p=>{
+   if(p.type==="speed") ctx.fillStyle="#22d3ee";
+   if(p.type==="shield") ctx.fillStyle="#a78bfa";
+   if(p.type==="bomb") ctx.fillStyle="#f97316";
+   ctx.fillRect(p.x,p.y,18,18);
+ });
 }
 
 function loop(){
-  if(!running)return;
-  ctx.clearRect(0,0,480,480);
-
-  ctx.fillStyle="lime";
-  ctx.fillRect(player.x,player.y,player.size,player.size);
-
-  ctx.fillStyle="red";
-  ctx.fillRect(enemy.x,enemy.y,enemy.size,enemy.size);
-
-  enemyAI();
-  updateBombs();
-  drawBombs();
-
-  document.getElementById("vida").innerText=Math.floor(player.life);
-  document.getElementById("score").innerText=score;
-
-  if(player.life<=0){
-    alert("Fim de jogo! Pontos: "+score);
-    running=false;
-    location.reload();
-  }
-
-  if(enemy.life<=0){
-    enemy.life=100;
-    enemy.x=Math.random()*400+40;
-    enemy.y=Math.random()*400+40;
-  }
-
-  requestAnimationFrame(loop);
+ if(!running) return;
+ movePlayers();
+ updateBombs();
+ collisions();
+ draw();
+ requestAnimationFrame(loop);
 }
 </script>
 
