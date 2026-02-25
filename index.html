@@ -1,198 +1,29 @@
+
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#0b1020">
-<link rel="manifest" href="manifest.json">
-<title>Bomber Zueira Arena PRO</title>
-
-<style>
-body{margin:0;font-family:Arial;background:#0b1020;color:white;text-align:center;overflow:hidden}
-.hidden{display:none}
-h1{color:#4ade80;text-shadow:0 0 10px #4ade80}
-button{padding:10px 18px;margin:6px;border:none;border-radius:8px;background:#22c55e;color:white;cursor:pointer}
-canvas{background:#1e293b;border:3px solid #22c55e;margin-top:10px;max-width:95vw;height:auto}
-</style>
+<title>Crypto Empire</title>
+<link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-<h1>🔥 Bomber Zueira Arena PRO 🔥</h1>
+<h1>🚀 Crypto Empire</h1>
 
-<div id="menu">
-<button onclick="startGame()">🎮 Jogar</button>
+<div id="login">
+<input id="username" placeholder="Seu nome">
+<button onclick="login()">Entrar</button>
 </div>
 
-<div id="game" class="hidden">
-<h3>
-P1 ❤️ <span id="life1">3</span> |
-P2 ❤️ <span id="life2">3</span>
-</h3>
-<canvas id="canvas" width="700" height="500"></canvas><br>
-<button onclick="exitGame()">Sair</button>
+<div id="game" style="display:none">
+
+<h2>Saldo: <span id="balance">0</span> EMPIRE</h2>
+
+<div id="upgrades"></div>
+
 </div>
 
-<script>
-if ('serviceWorker' in navigator) {
- navigator.serviceWorker.register('service-worker.js');
-}
-
-const canvas=document.getElementById("canvas");
-const ctx=canvas.getContext("2d");
-
-let keys={},running=false;
-let bombs=[],explosions=[],powers=[];
-
-let p1={x:100,y:100,size:25,speed:2,life:3,shield:false};
-let p2={x:500,y:350,size:25,speed:2,life:3,shield:false};
-
-document.addEventListener("keydown",e=>keys[e.key]=true);
-document.addEventListener("keyup",e=>keys[e.key]=false);
-
-function startGame(){
- document.getElementById("menu").classList.add("hidden");
- document.getElementById("game").classList.remove("hidden");
- running=true;
- spawnPower();
- loop();
-}
-
-function exitGame(){
- running=false;
- location.reload();
-}
-
-function spawnPower(){
- let types=["speed","shield","bomb"];
- powers.push({
-   x:Math.random()*650,
-   y:Math.random()*450,
-   type:types[Math.floor(Math.random()*types.length)]
- });
-}
-
-function movePlayers(){
-
- // PLAYER 1 - WASD
- if(keys["w"]) p1.y-=p1.speed;
- if(keys["s"]) p1.y+=p1.speed;
- if(keys["a"]) p1.x-=p1.speed;
- if(keys["d"]) p1.x+=p1.speed;
-
- // PLAYER 2 - SETAS
- if(keys["ArrowUp"]) p2.y-=p2.speed;
- if(keys["ArrowDown"]) p2.y+=p2.speed;
- if(keys["ArrowLeft"]) p2.x-=p2.speed;
- if(keys["ArrowRight"]) p2.x+=p2.speed;
-
- // Bombas
- if(keys["f"]) placeBomb(p1);
- if(keys["Enter"]) placeBomb(p2);
-}
-
-function placeBomb(player){
- bombs.push({x:player.x,y:player.y,t:60,owner:player});
-}
-
-function updateBombs(){
- bombs.forEach(b=>b.t--);
- bombs.forEach(b=>{
-   if(b.t===0){
-     explosions.push({x:b.x,y:b.y,t:30});
-   }
- });
- bombs=bombs.filter(b=>b.t>0);
-
- explosions.forEach(e=>e.t--);
- explosions=explosions.filter(e=>e.t>0);
-}
-
-function collisions(){
-
- explosions.forEach(e=>{
-
-   [p1,p2].forEach(player=>{
-     let d=Math.hypot(player.x-e.x,player.y-e.y);
-     if(d<60 && !player.shield){
-       player.life--;
-       player.x=Math.random()*600;
-       player.y=Math.random()*400;
-     }
-   });
-
- });
-
- powers.forEach(p=>{
-   [p1,p2].forEach(player=>{
-     let d=Math.hypot(player.x-p.x,player.y-p.y);
-     if(d<30){
-       if(p.type==="speed") player.speed+=0.5;
-       if(p.type==="shield") player.shield=true;
-       if(p.type==="bomb") placeBomb(player);
-       p.collected=true;
-     }
-   });
- });
-
- powers=powers.filter(p=>!p.collected);
-
- if(p1.life<=0 || p2.life<=0){
-   running=false;
-   alert("Fim de Jogo!");
-   location.reload();
- }
-
- document.getElementById("life1").innerText=p1.life;
- document.getElementById("life2").innerText=p2.life;
-}
-
-function draw(){
-
- ctx.clearRect(0,0,canvas.width,canvas.height);
-
- // Player 1
- ctx.fillStyle=p1.shield?"#60a5fa":"#4ade80";
- ctx.fillRect(p1.x,p1.y,p1.size,p1.size);
-
- // Player 2
- ctx.fillStyle=p2.shield?"#60a5fa":"#f87171";
- ctx.fillRect(p2.x,p2.y,p2.size,p2.size);
-
- // Bombas
- ctx.fillStyle="#fde047";
- bombs.forEach(b=>{
-   ctx.beginPath();
-   ctx.arc(b.x+12,b.y+12,10,0,Math.PI*2);
-   ctx.fill();
- });
-
- // Explosões
- ctx.fillStyle="orange";
- explosions.forEach(e=>{
-   ctx.beginPath();
-   ctx.arc(e.x+12,e.y+12,50,0,Math.PI*2);
-   ctx.fill();
- });
-
- // Powers
- powers.forEach(p=>{
-   if(p.type==="speed") ctx.fillStyle="#22d3ee";
-   if(p.type==="shield") ctx.fillStyle="#a78bfa";
-   if(p.type==="bomb") ctx.fillStyle="#f97316";
-   ctx.fillRect(p.x,p.y,18,18);
- });
-}
-
-function loop(){
- if(!running) return;
- movePlayers();
- updateBombs();
- collisions();
- draw();
- requestAnimationFrame(loop);
-}
-</script>
-
+<script src="app.js"></script>
 </body>
 </html>
