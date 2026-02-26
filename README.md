@@ -1,16 +1,16 @@
-## Hi there 👋
+# 🎵 Gerador de Melodia Aleatória (IA Simples)
 
-<!--
-**BomberZueira/BomberZueira** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+Projeto simples em Flask que gera melodias usando uma cadeia de Markov.
 
-Here are some ideas to get you started:
+## ▶️ Como executar
 
-- 🔭 I’m currently working on ...
-- 🌱 I’m currently learning ...
-- 👯 I’m looking to collaborate on ...
-- 🤔 I’m looking for help with ...
-- 💬 Ask me about ...
-- 📫 How to reach me: ...
-- 😄 Pronouns: ...
-- ⚡ Fun fact: ...
--->
+1. Instale as dependências:
+   pip install -r requirements.txt
+
+2. Execute:
+   python app.py
+
+3. Abra no navegador:
+   http://127.0.0.1:5000
+
+Clique no botão para gerar melodias automaticamente.
